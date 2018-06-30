@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>查找</title>
+<link rel="stylesheet" href="../../layui/css/layui.css">
+<style>
+.layim-searchbox{padding:10px 0px 0px 10px;}
+.layim-findbox{margin: 15px;display:none;}
+.layim-findbox li{position: relative; margin-bottom: 10px; padding: 0 130px 10px 60px; padding-bottom: 10px; line-height: 22px; border-bottom: 1px dotted #e2e2e2;}
+.layim-findbox .layim-findbox-tips{margin: 0; padding: 10px 0; border: none; text-align: center; color: #999;}
+.layim-findbox .layim-findbox-system{padding: 0 10px 10px 10px;}
+.layim-findbox li p span{padding-left: 0px; color: #999;}
+.layim-findbox li p em{font-style: normal; color: #FF5722;}
+
+.layim-findbox-avatar{position: absolute; left: 0; top: 0; width: 50px; height: 50px;}
+.layim-findbox-user{padding-top: 5px;}
+.layim-findbox-content{margin-top: 3px;}
+.layim-findbox .layui-btn-small{padding: 0 15px; margin-left: 5px;}
+.layim-findbox-btn{position: absolute; right: 0; top: 12px; color: #999;}
+.search_type{height:38px;width:80px;border-color:#e6e6e6;padding-left:10px;}
+</style>
+<link id="layuicss-skinlayimcss" rel="stylesheet" href="../../layui/css/modules/layim/layim.css" media="all">
+<link id="layuicss-skinlayercss" rel="stylesheet" href="../../layui/css/modules/layer/default/layer.css" media="all">
+</head>
+
+<body>
+<div class="layim-searchbox">
+	<div class="layui-inline" style="width:70%">
+		<input type="text" name="keywords" placeholder="请输入昵称" class="layui-input" />
+	</div>
+	<select name="search_type" class="search_type">
+		<option value="1">用户</option>
+		<option value="2">群组</option>
+	</select>
+	<button class="layui-btn layui-btn-normal" id="search">查找</button>
+</div>
+<ul class="layim-findbox" id="LAY_view"></ul>
+<textarea title="查找模版" id="LAY_tpl" style="display:none;">
+{{# layui.each(d.data, function(index, item){
+  if(item.type == 'users'){ }}
+    &lt;li data-uid="{{ item.uid }}" &gt;
+      &lt;a href="javascript:;" &gt;
+        &lt;img src="{{ item.avatar }}" class="layui-circle layim-findbox-avatar"&gt;
+      &lt;/a&gt;
+      &lt;p class="layim-findbox-user"&gt;
+        &lt;a href="javascript:;" &gt;{{ item.username||'' }}&lt;/a&gt;
+      &lt;/p&gt;
+      &lt;p class="layim-findbox-content"&gt;
+        &lt;span&gt;{{ item.sign ? '个性签名: '+item.sign : '无个性签名' }}&lt;/span&gt;
+      &lt;/p&gt;
+      &lt;p class="layim-findbox-btn"&gt;
+      	{{# if( item.is_friend=='0' ){ }}
+        &lt;button class="layui-btn layui-btn-small" data-type="agree"&gt;添加好友&lt;/button&gt;
+        {{# } else { }}
+        	已为好友
+        {{# } }}
+      &lt;/p&gt;
+    &lt;/li&gt;
+    {{# } else { }}
+    &lt;li data-gid="{{ item.gid }}" &gt;
+      &lt;a href="javascript:;" &gt;
+        &lt;img src="{{ item.group_avatar }}" class="layui-circle layim-findbox-avatar"&gt;
+      &lt;/a&gt;
+      &lt;p class="layim-findbox-user"&gt;
+        &lt;a href="javascript:;" &gt;{{ item.group_name||'' }}&lt;/a&gt;
+      &lt;/p&gt;
+      &lt;p class="layim-findbox-content"&gt;
+        &lt;span&gt;{{ '群主: '+item.creator_name }}&lt;/span&gt;
+      &lt;/p&gt;
+      &lt;p class="layim-findbox-btn"&gt;
+      	{{# if( item.in_group=='0' ){ }}
+        &lt;button class="layui-btn layui-btn-small" data-type="agree_group"&gt;添加群组&lt;/button&gt;
+        {{# } else { }}
+        	已加群组
+        {{# } }}
+      &lt;/p&gt;
+    &lt;/li&gt;
+    {{# }
+}); }}
+</textarea>
+<script src="../../layui/layui.js"></script>
+<script src="../../html/assets/js/cookie.min.js"></script>
+<script src="../../html/assets/js/jquery-1.8.2.min.js"></script>
+<script>
+
+$("#search").click(function(){
+	var keywords = $("input[name='keywords']").val();
+	if( keywords != '' ){
+		var search_type = $("select[name='search_type'] option:selected").val();
+
+		$("#LAY_view").children().remove();
+		$("#LAY_view").css("display","block");
+		// 解除点击触发绑定,防止出错
+		$("body").off("click",".layui-btn-small");
+		
+		layui.use(['layim', 'flow'], function(){
+			  var layim = layui.layim
+			  ,layer = layui.layer
+			  ,laytpl = layui.laytpl
+			  ,$ = layui.jquery
+			  ,flow = layui.flow;
+			  
+			  var cache = {}; 
+			  var uid = parent.uid; // 申请端UID
+			  // 请求获取消息列表
+			  var renderMsg = function(page, callback){
+				    $.post('../../interface/data.php/findFriends/', {
+				      	page: page || 1,
+				      	keywords :keywords,
+				      	type :search_type,
+				      	uid : uid
+				    }, function(res){
+				      	res = $.parseJSON(res);
+				      	if(res.code != 0){
+				        	return layer.msg(res.msg);
+				     	}
+				      	
+				     	// 记录来源用户信息
+				      	layui.each(res.data, function(index, item){
+				      		if( item.type == 'users' ){ // 查询用户
+				        		cache[item.uid] = item;
+				      		}else{ // 查询群组
+				      			cache[item.gid] = item;
+				      		}
+				      	});
+
+				      	callback && callback(res.data, res.pages);
+				    }); 
+			  };
+	
+			  // 消息信息流
+			  flow.load({
+				    elem: '#LAY_view' // 流加载容器
+				    ,isAuto: false
+				    ,end: '<li class="layim-findbox-tips">没有找到符合的用户</li>'
+				    ,done: function(page, next){  // 加载下一页
+				      renderMsg(page, function(data, pages){
+					        var html = laytpl(LAY_tpl.value).render({
+					          data: data
+					          ,page: page
+					        });
+					        next(html, page < pages);
+				      });
+				    }
+			  });
+			  
+			  var active = {
+				  agree: function(othis){
+				      var li = othis.parents('li')
+				      ,my_uid = parent.uid // 申请端UID
+				      ,to_uid = li.data('uid') // 对方用户UID
+				      ,user = cache[to_uid]; // 对方用户信息
+
+				      // 选择分组
+				      parent.layui.layim.add({
+				        type: 'friend'
+				        ,username: user.username
+				        ,avatar: user.avatar
+				        ,group: parent.layui.layim.cache().friend // 获取我的好友分组数据
+				        ,submit: function(group,remark ,index){
+					          // 同意好友后的操作
+					          $.post('../../interface/data.php/applyForFriends', {
+					        	  	my_uid : my_uid // 申请人ID
+					            	,to_uid: to_uid // 对方用户ID
+					            	,group: group // 我设定的好友分组
+					            	,remark: remark // 申请备注
+					            	,type : 1 // 添加好友标识
+					          }, function(res){
+					        	    res = $.parseJSON(res);
+					            	if(res.code != 0){
+					              		return parent.layer.msg(res.msg);
+					            	}
+					            	// 向对方用户推送消息提示
+					            	var send_data = '{"type":"msg_notice","to_uid":"'+to_uid+'"}';
+					            	parent.ws.send( send_data );
+					            	parent.layer.msg('好友申请已发送，请等待对方确认', {
+					                    icon: 1
+					                    ,shade: 0.5
+					                }, function(){
+					                    parent.layer.close(index);
+					                    othis.parent().html('已发送申请');
+					                });
+					         });
+				        }
+				      });
+				  },
+				  agree_group: function(othis){
+					  var li = othis.parents('li')
+					  ,my_uid = parent.uid  // 申请人UID
+					  ,gid = li.data('gid') // 群组ID
+					  ,group = cache[gid]  // 要申请的群组信息
+					  ,creator = group.creator; // 申请群群主UID
+
+					  parent.layui.layim.add({
+						  type : 'group'
+						  ,username: group.group_name
+						  ,avatar: group.group_avatar
+						  ,submit:function(group,remark,index){
+							  $.post('../../interface/data.php/applyForFriends',{
+								  my_uid : my_uid // 申请人ID
+								  ,to_uid : creator // 申请群的群主UID
+								  ,remark : remark // 申请备注
+								  ,group_id : gid // 申请群组ID
+								  ,type : 2 // 添加群组标识
+							  },function(res){
+								  res = $.parseJSON(res);
+								  if(res.code != 0){
+									  return parent.layer.msg(res.msg);
+								  }
+								  // 向对方用户推送消息提示
+								  var send_data = '{"type":"msg_notice","to_uid":"'+creator+'"}';
+								  parent.ws.send( send_data );
+								  parent.layer.msg( '群组申请已发送，请等待对方确认',{
+									  icon: 1
+									  ,shade: 0.5
+								  }, function(){
+									  parent.layer.close(index);
+									  othis.parent().html('已发送申请');
+								  } );
+							  });
+						  }
+					  });					  
+				  }
+				  
+			  };
+			  // 绑定按钮操作
+			  $('body').on('click','.layui-btn-small',function(){
+				  	var othis = $(this), type = othis.data('type');
+			    	active[type] ? active[type].call(this, othis) : '';
+			  });
+			  
+		});
+	}
+});
+</script>
+</body>
+</html>

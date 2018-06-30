@@ -1,0 +1,218 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>zxj</title>
+  <meta name="renderer" content="webkit">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <link rel="stylesheet" href="layui/css/layui.css"  media="all">
+</head>
+<body>              
+<script src="layui/layui.js" charset="utf-8"></script>
+<script src="html/assets/js/cookie.min.js" charset="utf-8"></script> 
+<script src="html/assets/js/jquery-1.8.2.min.js" charset="utf-8"></script>
+<script src="html/assets/js/initial.js" charset="utf-8"></script>
+<script src="html/assets/js/functions.js" charset="utf-8"></script>
+<script src="html/assets/js/sockets-functions.js" charset="utf-8"></script>
+<script>
+
+//--------------layim初始化配置---------------//
+layui.use('layim', function(){
+  layim = layui.layim;
+  //----------基础配置----------//
+  layim.config({
+	    //初始化接口,获取主面板列表信息
+	    init: {
+	       	url: 'interface/data.php/getPersonalInfo/'+uid
+	      	,data: {}
+	    }
+	    //查看群员接口
+	    ,members: {
+	       	url: 'interface/data.php/getGroupMembers'
+	      	,data: {}
+	    }
+	    //上传图片接口
+	    ,uploadImage: {
+	       	url: 'interface/data.php/uploadImages' 
+	      	,type: 'post' 
+	    }
+		//上传文件接口
+	    ,uploadFile: {
+	       	url: 'interface/data.php/uploadFiles' 
+	      	,type: 'post' 
+	    }
+	    //扩展工具栏
+	    ,tool: [{
+	      	alias: 'code'
+	      	,title: '代码'
+	      	,icon: '&#xe64e;'
+	    },{
+	    	alias: 'game'
+	    	,title: '游戏'
+	    	,icon: '&#xe611;'
+	    }]
+    
+	    //----------配置参数声明----------//
+	    //,brief: true //是否简约模式（若开启则不显示主面板）
+	    ,title: 'Jecent' //自定义主面板最小化时的标题
+	    ,right: '100px' //主面板相对浏览器右侧距离
+	    //,minRight: '90px' //聊天面板最小化时相对浏览器右侧距离
+	    ,initSkin: '3.jpg' //1-5 设置初始背景
+	    //,skin: ['timg.jpg'] //新增皮肤
+	    ,isfriend: true //是否开启好友
+	    ,isgroup: true //是否开启群组
+	    ,min: true //是否始终最小化主面板，默认false
+	    ,notice: false //是否开启桌面消息提醒，默认false
+	    ,voice: false //声音提醒，默认开启，声音文件为：default.wav
+	    
+	    //----------打开的页面声明----------//
+	    ,msgbox: 'html/modules/msgbox.html' //消息盒子页面地址，若不开启，剔除该项即可
+	    ,find: 'html/modules/friendFind.html' //发现页面地址，若不开启，剔除该项即可
+	    ,chatLog: 'html/modules/chatLog.html' //聊天记录页面地址，若不开启，剔除该项即可  
+  });
+//--------------layim监听事件---------------// 
+  //监听在线状态的切换事件,在线和隐身切换触发
+  layim.on('online', function(status){
+	  	var send_data = '{"type":"'+status+'"}';
+		ws.send(send_data);
+  });
+  
+  //监听签名修改时触发
+  layim.on('sign', function(value){
+	  	update_personal_sign(value);
+  });
+  
+  //监听自定义工具栏点击
+  layim.on('tool(code)', function(insert){
+	    layer.prompt({
+	      	title: '插入代码'
+	      	,formType: 2
+	      	,shade: 0
+	    }, function(text, index){
+	      	layer.close(index);
+	      	insert('[pre class=layui-code]' + text + '[/pre]'); //将内容插入到编辑器
+	    });
+  });
+  // 游戏界面
+  layim.on('tool(game)',function(insert,send,obj){
+	 if(obj.data.type == 'friend'){
+		 layer.ready(function(){
+			 var to_uid = obj.data.id;
+			 var from_uid = uid;
+			 var send_data = '{"type":"game_invitation","from_uid":"'+from_uid+'","to_uid":"'+to_uid+'"}';
+			 ws.send(send_data);
+		 });
+		 layer.open({
+			type:0,
+			title:"等待游戏开始",
+			content:"正在等待对方确认进入游戏...",
+			btn:"", // 不显示确认按钮
+			id:"gameInvitationFrom",
+			cancel:function(index,layero){
+				if(confirm('是否要关闭邀请对方游戏呢？')){
+					var to_uid = obj.data.id;
+					var from_uid = uid;
+					var send_data = '{"type":"game_invitation_cancel","from_uid":"'+from_uid+'","to_uid":"'+to_uid+'"}';
+					ws.send(send_data);
+					layer.close(index);
+				}
+				return false;
+			}
+		 }); 
+	 }
+  });
+  
+  //监听layim建立就绪时触发
+  layim.on('ready', function(res){
+    	connect();
+    	// 若有未读消息,则显示消息数
+    	if( msg_count!='0' ){
+    		layim.msgbox(msg_count);
+    	}
+    	// 使点击自己头像时不弹出聊天框
+    	$("#layim-friend"+uid).removeAttr("layim-event");
+    	$("#layim-friend"+uid).click(function(){
+ 			layer.open({
+ 			      type: 2,
+ 			      title: username+'个人信息',
+ 			      id:'personalInfo',
+ 			      shadeClose: true,
+ 			      shade: false,
+ 			      maxmin: true, 
+ 			      area: ['893px', '600px'],
+ 			      content: 'html/modules/personalInfo.html',
+ 			      cancel:function(index,layero){},
+ 			      end:function(){
+ 			    	  // 若子页面内容有修改过,则关闭子窗口后强制刷新页面
+ 			    	  if( child_window_change == true ){
+ 			    		 	child_window_change = false;
+ 			    	  		location.reload();
+ 			    	  }
+ 			      }
+ 			});	  
+    	});
+  });
+  
+  //监听发送消息,每发送一个消息时被触发
+  layim.on('sendMessage', function(data){
+	    var To = data.to;
+	    var mine = data.mine;
+	    var send_content = filter_string(mine.content);
+	    var send_data = '{"type":"chatMessage","data":{"to":{"type":"'+To.type+'","id":"'+To.id+'"},"mine":{"content":"'+send_content+'"}}}';    
+		ws.send(send_data);
+  });
+  
+  //监听查看群员,在群聊面板中查看全部成员时触发
+  layim.on('members', function(data){
+    	//console.log(data);
+  });
+  
+  // 监听聊天窗口的切换
+  layim.on('chatChange', function(res){
+	    // 记录当前正切换的聊天窗口对象
+	    chat_object_now = res;
+	    // 绑定当聊天窗口关闭或点击发送时触发取消状态
+	    res.elem.parent().parent().parent().find(".layui-layer-close1, .layim-chatlist-friend"+res.data.id+" [layim-event='closeChat'], .layim-send-btn ").on("click",{uid:res.data.id},function(event){     
+	    	if( users_chat_status_local[event.data.uid] ){
+	    		delete_from_jsonObject(users_chat_status_local,event.data.uid);
+				var send_data = '{"type":"chatStatus","status":"off","data":{"to":{"id":"'+event.data.uid+'"}}}';
+				ws.send(send_data);
+	    	}
+	    });
+	    
+	    // 打开自己的页面窗口
+  		if( res.data.id == uid ){
+  			//console.log('myself');
+  		}
+  		// 打开好友聊天窗口
+  		else{
+  			var myTextarea = res.textarea;
+  			var toUid = res.data.id;
+			// 绑定当输入框有内容时触发设置状态,当输入框内容为空时触发取消状态
+  			myTextarea.keyup(function(){
+  				var inputContent = $(this).val();
+  				if(inputContent!='' && !users_chat_status_local[toUid]){
+  					insert_into_jsonObject(users_chat_status_local,toUid,1);
+  					var send_data = '{"type":"chatStatus","status":"on","data":{"to":{"id":"'+toUid+'"}}}';
+  					ws.send(send_data);
+  				}else if(inputContent=='' && users_chat_status_local[toUid]){
+  					delete_from_jsonObject(users_chat_status_local,toUid);
+  					var send_data = '{"type":"chatStatus","status":"off","data":{"to":{"id":"'+toUid+'"}}}';
+  					ws.send(send_data);
+  				}
+  			});
+  			// 来回切换聊天窗口时判断该对象用户状态是否正在输入
+  			if( users_chat_status[res.data.id] ){
+  				layim.setChatStatus('<span style="color:#FF5722;">对方正在输入。。。</span>');
+  			}else{
+  				layim.setChatStatus('');
+  			} 			
+  		}
+  });
+  
+});
+
+</script>
+</body>
+</html>

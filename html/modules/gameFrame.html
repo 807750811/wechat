@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>五子棋HTML5版</title>
+		<meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+		<link rel="stylesheet" type="text/css" href="../../html/assets/css/gobang.css" />
+		<script src="../../html/assets/js/jquery-1.8.2.min.js" type="text/javascript" charset="utf-8"></script>
+		<script src="../../html/assets/js/cookie.min.js" type="text/javascript" charset="utf-8"></script>
+	</head>
+	<body>
+		<!--游戏信息栏界面-->
+		<div class="info">
+			<h1>五子棋</h1>
+			<div class="desc">
+				<div id="pl1" class="curr">
+					<!--<span></span>-->
+					<em id="plname1"></em>
+					<font id="gameresult1"> 战绩：胜（<b class="winresult">0</b>）负（<b class="loseresult">0</b>）逃跑率（<b class="escaperesult">0%</b>）</font>
+				</div>
+				<div id="pl2">
+					<!--<span></span>-->
+					<em id="plname2"></em>
+					<font id="gameresult2"> 战绩：胜（<b class="winresult">0</b>）负（<b class="loseresult">0</b>）逃跑率（<b class="escaperesult">0%</b>）</font>
+				</div>
+			</div>
+			<div class="score" style="display:none">
+				<h1>比分</h1>
+				<i id="scoreA">0</i><i>:</i><i id="scoreB">0</i>
+			</div>
+			<div class="menu" style="display:none">
+				<a href="javascript:;" onclick="restartgui()">重新开始</a>
+				<a href="javascript:;" onclick="gb.back();" id="backChessman">悔棋</a>
+			</div>
+		</div>
+		<div style="width: 100%;height: 100%;" class="bb">
+			<canvas id="cc" width="600" height="600" style="display: none;">
+				<div class="nosupport" style="width: 600px; height: 600px; text-align: center;line-height: 200px; color: red;">
+					浏览器不支持HTML5 canvas<br/>请使用 chrome，IE9（含）以上，360急速，火狐，等现代浏览器打开.
+				</div>
+			</canvas>
+			<div id="winer" class="pnl winer">
+				<img id="winerImg" src="http://sandbox.runjs.cn/uploads/rs/62/nbqodq5i/winer.jpeg" width="600" height="600" />
+				<h1 id="winerName">恭喜！xxx赢了</h1>
+				<input type="button" value="再来一把" tabindex="0" autofocus="autofocus" onclick="restartgui()" />
+			</div>
+		</div>
+	</body>
+	<script type="text/javascript">
+		window.onload=function(){
+			gconnect();
+			var playerRole = cookie.get("playerRole");
+			// 初始开始时玩家2不可下棋
+			if(playerRole==2){
+				gb.unbindEvent();
+			}
+		}
+		WEB_SOCKET_SWF_LOCATION = "html/assets/swf/WebSocketMain.swf";
+		WEB_SOCKET_DEBUG = true;
+		var gws;
+		function gconnect(){
+			gws = new WebSocket("ws://"+document.domain+":7272");
+			gws.onopen = gonopen;
+			gws.onmessage = gonmessage;
+			gws.onclose = function(){
+				gconnect();
+			};
+			gws.onerror = function(){};
+		}
+		function gonopen(){
+			var competitor_uid = parent.cookie.get("competitor_uid");
+			var login_data = '{"type":"game_init","uid":"'+parent.uid+'","competitor":"'+competitor_uid+'"}';
+			gws.send(login_data);
+		}
+		function gonmessage(e){
+			var data = eval("("+e.data+")");
+			if( data.message_type == 'play_chess' ){
+				var x_site = data.x_site;
+				var y_site = data.y_site;
+				var playerRole = cookie.get("playerRole");
+				switchPlayer(playerRole);
+				gb.rebindEvent();
+				gb.eventHandler({x:x_site,y:y_site});
+			}
+			// 双方状态为已准备,则允许可下棋的步骤
+			else if( data.message_type == 'game_isReady' ){
+				var playerRole = cookie.get("playerRole");
+				if(playerRole == 1){
+					gb.rebindEvent();
+				}
+			}
+		}
+		// 当执行下棋逻辑时获取下棋步骤的数据
+		function transfer_data(c2d){
+			//console.log(c2d);
+			var competitor_uid = cookie.get("competitor_uid");
+			var send_data = '{"type":"play_chess","competitor_uid":"'+competitor_uid+'","x":"'+c2d.x+'","y":"'+c2d.y+'"}';
+			gws.send(send_data);
+			gb.unbindEvent();
+		}
+		// 切换轮到下棋的玩家
+		function switchPlayer(player){
+			if( player == 1 ){
+				pl1obj.setAttribute("class","curr");
+				pl2obj.removeAttribute("class","curr");
+			}else{
+				pl1obj.removeAttribute("class","curr");
+				pl2obj.setAttribute("class","curr");
+			}
+		}
+	</script>
+	<script src="../../html/assets/js/game.js" type="text/javascript" charset="utf-8"></script>
+	<script type="text/javascript">
+		var gb = null;
+		var infoboj = document.getElementsByClassName("info")[0];
+		var pl1obj = document.getElementById("pl1");
+		var pl2obj = document.getElementById("pl2");
+		var plname1obj = document.getElementById("plname1");
+		var plname2obj = document.getElementById("plname2");
+		var winerpnl = document.getElementById("winer");
+		// 线条颜色（green-绿色、black-黑色、white-白色、darkgray-灰色、yellowgreen-黄绿色、lightseagreen-亮色）
+		var linevalue = "green";
+		// 棋盘背景
+		var bcorimgvalue = "default";
+		// 棋子类型（1-颜色棋子、2-仿真棋子）
+		var chessTypeValue = 2;
+		var playerAName = "玩家1";
+		var playerBName = "玩家2";
+		
+		$(document).ready(function () {
+			var competitor_uid = cookie.get("competitor_uid"); 
+			// 获取对战者用户名
+			$.ajax({
+				url:"../../interface/data.php/getUsernameByUid/"+competitor_uid,
+				type:"get",
+				dataType:"json",
+				async:false,
+				success:function(res){
+					var playerRole = cookie.get("playerRole");
+					if(playerRole == 1){
+						playerAName = parent.username;
+						playerBName = res.username;
+					}else{
+						playerAName = res.username;
+						playerBName = parent.username;
+					}
+				}
+			});
+			// 获取对战结果
+			$.ajax({
+				url:"../../interface/data.php/getGameResult",
+				type:"post",
+				dataType:"json",
+				data:{uid:parent.uid,competitor_uid:competitor_uid},
+				asyuc:false,
+				success:function(res){
+					var playerRole = cookie.get("playerRole");
+					$("#gameresult1 .winresult").html( playerRole == 1 ? res.mine.win : res.competitor.win );
+					$("#gameresult1 .loseresult").html( playerRole == 1 ? res.mine.lose : res.competitor.lose );
+					$("#gameresult1 .escaperesult").html( playerRole == 1 ? res.mine.escape : res.competitor.escape );
+					$("#gameresult2 .winresult").html( playerRole == 1 ? res.competitor.win : res.mine.win );
+					$("#gameresult2 .loseresult").html( playerRole == 1 ? res.competitor.lose : res.mine.lose );
+					$("#gameresult2 .escaperesult").html( playerRole == 1 ? res.competitor.escape : res.mine.escape );
+				}
+			});
+			// 初始化参数
+			function initParams() {				
+				return {
+					lineColor: linevalue,
+					chessType: chessTypeValue,
+					playAName: playerAName,
+					playBName: playerBName,
+					backColorORImg: bcorimgvalue,
+					playAImg: "../../html/assets/img/game/playA.png",
+					playBImg: "../../html/assets/img/game/playB.png",
+					playerBIsComputer:0
+				};
+			}
+			document.getElementById("cc").style.display = "block";
+			gb = new gobang(initParams());
+			/**
+			 * 设置一些界面信息
+			 * @param {Object} opt
+			 */
+			gb.info = function(opt) {
+				infoboj.style.visibility = "visible";
+				plname1obj.innerHTML = opt.playAName;
+				plname2obj.innerHTML = opt.playBName;
+				if (opt.chessType == 1) {
+					var span1 = document.createElement("span");
+					pl1obj.insertBefore(span1, plname1obj);
+					var span2 = document.createElement("span");
+					pl2obj.insertBefore(span2, plname2obj);
+				} else {
+					var img1 = document.createElement("img");
+					img1.src = opt.playAImg;
+					pl1obj.insertBefore(img1, plname1obj);
+					var img2 = document.createElement("img");
+					img2.src = opt.playBImg;
+					pl2obj.insertBefore(img2, plname2obj);
+				}
+			}
+			
+			/**
+			 * 每次下棋后触发事件 
+			 * @param {Object} opt 配置信息对象
+			 * @param {Object} c2d 下棋的信息对象
+			 */
+			gb.operate = function(opt, c2d) {
+				if (!c2d.winer || c2d.winer <= 0) {
+					pl1obj.removeAttribute("class", "curr");
+					pl2obj.removeAttribute("class", "curr");
+					if (c2d.player == 1) {
+						pl2obj.setAttribute("class", "curr");
+					} else {
+						pl1obj.setAttribute("class", "curr");
+					}
+					document.getElementById("backChessman").innerHTML="悔棋("+c2d.canBackTimes+")";
+				} 
+				// 游戏结束
+				else {
+					var playerRole = cookie.get("playerRole");
+					var isWin = c2d.winer == playerRole ? 1 : 0;
+					var send_data = '{"type":"game_is_finish","isWin":"'+isWin+'"}';
+					gws.send(send_data);
+					var winname = c2d.winer == 1 ? opt.playAName : opt.playBName;
+					var str = "恭喜，【" + winname + "】赢了！"
+					alert(str);
+					winerpnl.style.display = "block";
+					if( playerRole == c2d.winer ){
+						document.getElementById("winerName").innerHTML = "恭喜你赢了！";
+						$("#winerImg").attr("src","../../html/assets/img/game/winner.jpg");
+						//document.getElementById("scoreA").innerHTML = c2d.playScoreA;
+						//document.getElementById("scoreB").innerHTML = c2d.playScoreB;
+					}else{
+						document.getElementById("winerName").innerHTML = "你输了！";
+						$("#winerImg").attr("src","../../html/assets/img/game/loser.jpg");
+					}
+					document.getElementById("pl" + c2d.winer).style.backgroundColor = "pink";
+				}
+			}
+			gb.start();
+		});
+		
+		// 游戏结束之后更新玩家战绩
+		function updateGameResult(){
+			var competitor_uid = cookie.get("competitor_uid");
+			$.ajax({
+				url:"../../interface/data.php/getGameResult",
+				type:"post",
+				dataType:"json",
+				data:{uid:parent.uid,competitor_uid:competitor_uid},
+				asyuc:false,
+				success:function(res){
+					var playerRole = cookie.get("playerRole");
+					$("#gameresult1 .winresult").html( playerRole == 1 ? res.mine.win : res.competitor.win );
+					$("#gameresult1 .loseresult").html( playerRole == 1 ? res.mine.lose : res.competitor.lose );
+					$("#gameresult1 .escaperesult").html( playerRole == 1 ? res.mine.escape : res.competitor.escape );
+					$("#gameresult2 .winresult").html( playerRole == 1 ? res.competitor.win : res.mine.win );
+					$("#gameresult2 .loseresult").html( playerRole == 1 ? res.competitor.lose : res.mine.lose );
+					$("#gameresult2 .escaperesult").html( playerRole == 1 ? res.competitor.escape : res.mine.escape );
+				}
+			});
+		}
+		
+		//重新开始
+		function restartgui() {
+			if (gb) {
+				// 先禁止下棋步骤
+				gb.unbindEvent();
+				// 检查双方的状态为已准备
+				var send_data = '{"type":"check_user_isReady"}';
+				gws.send(send_data);
+				updateGameResult();
+				winerpnl.style.display = "none";
+				pl1obj.removeAttribute("class", "curr");
+				pl2obj.removeAttribute("class", "curr");
+				document.getElementById("pl1").style.backgroundColor = "";
+				document.getElementById("pl2").style.backgroundColor = "";
+				gb.restart();
+			}
+		};
+	</script>
+</html>

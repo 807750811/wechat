@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+	<title>聊天记录</title>
+	<link rel="stylesheet" href="../../layui/css/layui.css">
+	<style>
+		body .layim-chat-main{height: auto;}
+	</style>
+	<link id="layuicss-skinlayimcss" rel="stylesheet" href="../../layui/css/modules/layim/layim.css" media="all">
+	<link id="layuicss-skinlayercss" rel="stylesheet" href="../../layui/css/modules/layer/default/layer.css" media="all">
+</head>
+<body>
+
+<div class="layim-chat-main">
+	<ul id="LAY_view"></ul> 
+</div>
+
+<div id="LAY_page" style="margin: 0 10px;"></div>
+
+<textarea title="消息模版" id="LAY_tpl" style="display:none;">
+{{# layui.each(d.data, function(index, item){
+  if(item.id == parent.uid){ }}
+    &lt;li class="layim-chat-mine"&gt;
+    	&lt;div class="layim-chat-user"&gt;
+    		&lt;img src="{{ item.avatar }}"&gt;&lt;cite&gt;&lt;i&gt;{{ layui.data.date(item.timestamp) }}&lt;/i&gt;{{ item.username }}&lt;/cite&gt;
+    	&lt;/div&gt;
+    	&lt;div class="layim-chat-text"&gt;{{ layui.layim.content(item.content) }}&lt;/div&gt;
+    &lt;/li&gt;
+  {{# } else { }}
+    &lt;li&gt;&lt;div class="layim-chat-user"&gt;
+    	&lt;img src="{{ item.avatar }}"&gt;&lt;cite&gt;{{ item.username }}&lt;i&gt;{{ layui.data.date(item.timestamp) }}&lt;/i&gt;&lt;/cite&gt;
+    	&lt;/div&gt;
+    	&lt;div class="layim-chat-text"&gt;{{ layui.layim.content(item.content) }}&lt;/div&gt;
+    &lt;/li&gt;
+  {{# }
+}); }}
+</textarea>
+
+<script src="../../layui/layui.js"></script>
+<script>
+layui.use(['layim', 'flow'], function(){
+  var layim = layui.layim
+  ,layer = layui.layer
+  ,laytpl = layui.laytpl
+  ,$ = layui.jquery
+  ,flow = layui.flow;
+  
+  var param =  location.search
+  ,uid = parent.uid;
+  var renderMsg = function(page,callback){
+		$.post('../../interface/data.php/getHistoryChat/'+param,{
+			page : page || 1,
+			uid : uid
+		},function(res){
+			res = $.parseJSON(res);
+			if(res.code != 0){
+				return layer.msg(res.msg);
+			}
+			callback && callback(res.data,res.pages);
+		});
+  };
+  
+  flow.load({
+		elem:'#LAY_view'
+		,isAuto : false
+		,done : function(page , next){
+			renderMsg(page,function(data,pages){
+				var html = laytpl(LAY_tpl.value).render({
+					data:data
+					,page:page
+				});
+				next(html,page < pages);
+			});
+		}
+  });
+  
+});
+</script>
+
+</body>
+</html>
