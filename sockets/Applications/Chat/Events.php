@@ -1,8 +1,9 @@
 <?php
 use \GatewayWorker\Lib\Gateway;
-use \GatewayWorker\Lib\MongoDB;
+use \GatewayWorker\Lib\MongoDBInstance;
 
-require_once '/usr/local/apache2/htdocs/wechat/sockets/vendor/workerman/mysql/src/Connection.php';
+require_once __DIR__.'/../../vendor/workerman/mysql/src/Connection.php';
+require_once __DIR__.'/../../../Configures/config.php';
 /**
  * 主逻辑
  * 主要是处理 onConnect onMessage onClose 三个方法
@@ -15,7 +16,7 @@ class Events
    
    // 进程启动后初始化数据库连接
    public static function onWorkerStart($worker){
-       self::$db = new Workerman\MySQL\Connection("localhost", "3306", "root", "zxj1105511101", "wechat");
+       self::$db = new Workerman\MySQL\Connection(MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_AUTH, MYSQL_DBNAME);
    }
    
    /**
@@ -26,7 +27,8 @@ class Events
    public static function onMessage($client_id, $data) {
        // 建立redis连接
        $redis = new Redis();
-       $redis->connect("127.0.0.1:6379");
+       $redis->connect(REDIS_HOST,REDIS_PORT);
+       $redis->auth(REDIS_AUTH);
        // 解析json数据
        $message = json_decode($data, true);
        $message_type = $message['type'];
@@ -87,8 +89,8 @@ class Events
                
                // 通知所有用户该用户上线
                $status_message = array(
-                   'message_type' => 'online',
-                   'id' => $_SESSION['id']
+                   'message_type'   => 'online',
+                   'id'             => $_SESSION['id']
                );
                Gateway::sendToAll(json_encode($status_message));
                return;
@@ -102,11 +104,11 @@ class Events
                
                // Mongodb保存聊天记录
                $save_data = array(
-                   'type' => $type,
-                   'from_uid' => intval($uid),
-                   'to_id' => intval($to_id),
-                   'content' => htmlspecialchars($message['data']['mine']['content']),
-                   'timestamp' => time()*1000
+                   'type'       => $type,
+                   'from_uid'   => intval($uid),
+                   'to_id'      => intval($to_id),
+                   'content'    => htmlspecialchars($message['data']['mine']['content']),
+                   'timestamp'  => time()*1000
                );
                if($type === 'friend'){
                    $save_data['is_read'] = 0;
@@ -116,21 +118,21 @@ class Events
                    $member_list = array_merge( array_diff( json_decode($member_list,true),array($uid) ) );
                    $save_data['member_list'] = $member_list;
                }
-               MongoDB::saveChatMessage($save_data);
+               $insertResult = MongoDBInstance::saveChatMessage($save_data);
                // 获取插入mongodb的ID
-               $objIdArray = (array)$save_data["_id"];
-               $insertId = $objIdArray['$id'];
+               $insertResult = json_decode($insertResult,true);
+               $insertId = $insertResult['insertId'];
                
                $chat_message = array(
                     'message_type' => 'chatMessage',
                     'data' => array(
-                        'username' => $_SESSION['username'],
-                        'avatar'   => $_SESSION['avatar'],
-                        'id'       => $type === 'friend' ? $uid : $to_id,
-                        'type'     => $type,
-                        'content'  => htmlspecialchars($message['data']['mine']['content']),
-                        'timestamp'=> time()*1000,
-                        'chatId'   => $insertId
+                        'username'  => $_SESSION['username'],
+                        'avatar'    => $_SESSION['avatar'],
+                        'id'        => $type === 'friend' ? $uid : $to_id,
+                        'type'      => $type,
+                        'content'   => htmlspecialchars($message['data']['mine']['content']),
+                        'timestamp' => time()*1000,
+                        'chatId'    => $insertId
                     )
                );
                
@@ -196,7 +198,7 @@ class Events
                if( $from_type == 'friend' ){
                    // 设置该消息为已读消息表示已接收
                    $update_field = array('is_read' => 1);
-                   MongoDB::updateChatMessageById($message['chat_id'], $update_field);
+                   MongoDBInstance::updateChatMessageById($message['chat_id'], $update_field);
                }else if( $from_type == 'group' ){
                    $received_uid = intval($message['received_uid']);
                    $update_field = array(
@@ -204,7 +206,7 @@ class Events
                             'member_list' =>  $received_uid
                        )
                    );
-                   MongoDB::updateChatMessageByCondition($message['chat_id'], $update_field);
+                   MongoDBInstance::updateChatMessageByCondition($message['chat_id'], $update_field);
                }
                return;
            /*--------------------------------------------------------------------------------------*/
@@ -337,7 +339,8 @@ class Events
    public static function onClose($client_id) {
        // 建立redis连接
        $redis = new Redis();
-       $redis->connect("127.0.0.1:6379");
+       $redis->connect(REDIS_HOST,REDIS_PORT);
+       $redis->auth(REDIS_AUTH);
        if( isset($_SESSION['id']) ){
            // 用户离线将此用户id从在线集合中移除( 判断uid是否在线来区分是离线还是多端登录逼退  )
            if( Gateway::isUidOnline($_SESSION['id'])==FALSE ){

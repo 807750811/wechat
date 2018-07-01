@@ -1,5 +1,5 @@
 <?php
-
+require_once __DIR__."/../Configures/config.php";
 /**
  * @desc 检查好友的在线状态
  * @param array $users  
@@ -130,27 +130,33 @@ function getMongoDb(){
     return $database;
 }
 
+function getMongoDBInstance(){
+    $mongodb = new \MongoDB\MongoDB();
+    return $mongodb;
+}
+
 /**
  * 获取redis资源
  * @return Redis
  */
 function getRedis(){
     $redis = new Redis();
-    $redis->connect("127.0.0.1:6379");
+    $redis->connect(REDIS_HOST,REDIS_PORT);
+    // 身份验证，当开启后需要密码
+    $redis->auth(REDIS_AUTH);
     return $redis;
 }
 
 // 获取数据库源
 function getDatabase(){
-    $config = require 'config_inc.php';
     $database = new \Medoo\medoo([
-        'database_type' => 'mysql',
-        'database_name' => $config['mysql_database'],
-        'server' => $config['mysql_host'],
-        'username' => $config['mysql_username'],
-        'password' => $config['mysql_password'],
-        'charset' => 'utf8',
-        'port' => 3306
+        'database_type' =>  'mysql',
+        'database_name' =>  MYSQL_DBNAME,
+        'server'        =>  MYSQL_HOST,
+        'username'      =>  MYSQL_USER,
+        'password'      =>  MYSQL_AUTH,
+        'charset'       =>  'utf8',
+        'port'          =>  MYSQL_PORT
     ]);
     return $database;
 }

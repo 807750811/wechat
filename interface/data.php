@@ -94,12 +94,12 @@ $app->run();
 function getPersonalInfo($uid){
     $database = getDatabase();
     $result = array(
-        'code' => '0',
-        'msg' => '',
-        'data' => array(
-            'mine' => '',
-            'friend' => '',
-            'group' => ''
+        'code'  => '0',
+        'msg'   => '',
+        'data'  => array(
+            'mine'      => '',
+            'friend'    => '',
+            'group'     => ''
         )
     );
     // 个人信息
@@ -131,9 +131,9 @@ function getPersonalInfo($uid){
 function getUsernameByUid($uid){
     $database = getDatabase();
     $result = array(
-        'code' => '0',
-        'msg'  => '',
-        'username' => ''
+        'code'      => '0',
+        'msg'       => '',
+        'username'  => ''
     );
     $getUsername = $database->get("users",
         ["nickname(username)"],["uid"=>$uid]);
@@ -145,20 +145,20 @@ function getUsernameByUid($uid){
 function getGameResult(){
     $database = getDatabase();
     $result = array(
-        'code' => '0',
-        'msg'  => '',
-        'mine' => '',
-        'competitor' => ''
+        'code'          => '0',
+        'msg'           => '',
+        'mine'          => '',
+        'competitor'    => ''
     );
     $mine = $database->get("game_result",
         ["win_times","lose_times","escape_times"],
         ["uid"=>intval($_POST['uid'])]);
     $mine_total = $mine['win_times'] + $mine['lose_times'] + $mine['escape_times'];
     $result['mine'] = array(
-        'win'=>$mine['win_times'],
-        'lose'=>$mine['lose_times'],
-        'escape'=> round(($mine['escape_times'] / $mine_total)*100)."%",
-        'total'=>$mine_total
+        'win'       =>$mine['win_times'],
+        'lose'      =>$mine['lose_times'],
+        'escape'    => round(($mine['escape_times'] / ($mine_total == 0 ? 1:$mine_total))*100)."%",
+        'total'     =>$mine_total
     );
     $competitor = $database->get("game_result",
         ["win_times","lose_times","escape_times"],
@@ -166,10 +166,10 @@ function getGameResult(){
     $competitor_total = $competitor['win_times'] + $competitor['lose_times'] + $competitor['escape_times'];
 	$competitor_total = $competitor_total!=0 ? $competitor_total:0;
     $result['competitor'] = array(
-        'win'=>$competitor['win_times'],
-        'lose'=>$competitor['lose_times'],
-        'escape'=> round(($competitor['escape_times'] / $competitor_total)*100)."%",
-        'total'=>$competitor_total
+        'win'       =>$competitor['win_times'],
+        'lose'      =>$competitor['lose_times'],
+        'escape'    => round(($competitor['escape_times'] / $competitor_total)*100)."%",
+        'total'     =>$competitor_total
     );
     echo json_encode($result);
 }
@@ -180,9 +180,9 @@ function getGroupMembers(){
     $gid = $_GET['id'];
     $database = getDatabase();
     $result = array(
-        'code' => '0',
-        'msg' => '',
-        'data' => array(
+        'code'  => '0',
+        'msg'   => '',
+        'data'  => array(
             'list' => ''
         )
     );
@@ -257,9 +257,9 @@ function getMsgBoxInfo($uid){
         }
     }
     $result = array(
-        'code' => '0',
+        'code'  => '0',
         'pages' => $pages,
-        'data' => $msg_list
+        'data'  => $msg_list
     );
     echo json_encode($result);
 }
@@ -415,9 +415,9 @@ function findFriends(){
     }
     $pages = intval($count / 6) + 1;
     $result = array(
-        'code'=>'0',
-        'data' => $data,
-        'msg' => '',
+        'code'  =>'0',
+        'data'  => $data,
+        'msg'   => '',
         'pages' => $pages
     );
     echo json_encode($result);
@@ -442,9 +442,9 @@ function findGroups(){
     $count = $database->count("group",["group_name[~]"=>$keywords]);
     $pages = intval( $count / 6 ) + 1;
     $result = array(
-        'code' => '0',
-        'data' => $data,
-        'msg' => '',
+        'code'  => '0',
+        'data'  => $data,
+        'msg'   => '',
         'pages' => $pages
     );
     echo json_encode($result);
@@ -495,9 +495,9 @@ function applyForFriends(){
 // 用户登录
 function userLogin(){
     $result = array(
-        'status' => '0',
-        'msg' => '',
-        'url' => '',
+        'status'    => '0',
+        'msg'       => '',
+        'url'       => '',
         'user_data' => ''
     );
     // 解密获取登录信息
@@ -517,10 +517,10 @@ function userLogin(){
         // 生成Json Web Token作为后续验证token
         $key = "jay_z:wechat";
         $token = array(
-            'iss' => 'www.wechat.com',  // 发行者
-            'exp' => time()+3600,       // 过期时间
-            'name' => $login['username'],
-            'uid' => $login['uid']
+            'iss'   => 'www.wechat.com',  // 发行者
+            'exp'   => time()+3600,       // 过期时间
+            'name'  => $login['username'],
+            'uid'   => $login['uid']
         );
         $result['tokens'] = \JWT\JWT::encode($token,$key);
     }else{
@@ -592,7 +592,7 @@ function checkUserLogin(){
 // 接收离线消息
 function getOfflineMessage(){
     $uid = intval($_POST['uid']);
-    $mongodb = getMongoDb();
+    $mongodb = getMongoDBInstance();
     $result = array();
     // 拼接查询条件
     $where = array(
@@ -610,24 +610,24 @@ function getOfflineMessage(){
             )
         )
     );
-    $res = $mongodb->chat_content->find($where);
-    foreach( $res as $data ){
-        if( !empty($data) ){
-            $user_info = get_user_info($data['from_uid']);
-            // 获取mongodb数据集中ID(转换为字符串)
-            $objIdArray = (array)$data['_id'];
-            $objId = $objIdArray['$id'];
-            $message = array(
-                'username' => $user_info['username'],
-                'avatar' => $user_info['avatar'],
-                'id' => $data['type'] === 'friend' ? $data['from_uid'] : $data['to_id'],
-                'type' => $data['type'],
-                'content' => htmlspecialchars($data['content']),
-                'timestamp' =>$data['timestamp'],
-                'chatId' => $objId
-            );
-            array_push($result, $message);
-        }   
+    $res = $mongodb->query($where,array(),array(),"chat_content",0,0,true,true);
+    if($res['error']==0 && !empty($res['result'])){
+        foreach( $res['result'] as $data ){
+            if( !empty($data) ){
+                $user_info = get_user_info($data->from_uid);
+                $objId = $data->_id->__toString();
+                $message = array(
+                    'username'  => $user_info['username'],
+                    'avatar'    => $user_info['avatar'],
+                    'id'        => $data->type === 'friend' ? $data->from_uid : $data->to_id,
+                    'type'      => $data->type,
+                    'content'   => htmlspecialchars($data->content),
+                    'timestamp' =>$data->timestamp,
+                    'chatId'    => $objId
+                );
+                array_push($result, $message);
+            }
+        }
     }
     echo json_encode($result);
 }
@@ -639,7 +639,7 @@ function getHistoryChat(){
     $to_id = intval($_GET['id']);
     $type = trim($_GET['type']);
     $history = array();
-    $mongodb = getMongoDb();
+    $mongodb = getMongoDBInstance();
     // 拼接查询条件
     if( $type == 'friend' ){
         $query = array(
@@ -667,28 +667,31 @@ function getHistoryChat(){
         );
     }
     // 获取分页数
-    $count = $mongodb->chat_content->find($query)->count();
+    $get_count = $mongodb->count($query,"chat_contents",true);
+    $count = $get_count['response'];
     $pages = intval($count / 10) + 1;
     // 获取查询的历史记录
-    $datas = $mongodb->chat_content->find($query)->sort(array("timestamp"=>1))->limit(10)->skip(($page-1)*10);
-    foreach( $datas as $data ){
-        if( !empty($data) ){
-            $from_info = get_user_info($data['from_uid']);
-            $dataset = array(
-                'username' => $from_info['username'],
-                'id' => $data['from_uid'],
-                'avatar' => $from_info['avatar'],
-                'timestamp' => $data['timestamp'],
-                'content' => $data['content']
-            );
-            array_push($history, $dataset);
+    $datas = $mongodb->query($query,array('timestamp'=>'asc'),array(),"chat_content",10,$pages,false,true);
+    if( $datas['error'] == 0 && !empty($datas['result']) ){
+        foreach( $datas['result'] as $data ){
+            if( !empty($data) ){
+                $from_info = get_user_info($data->from_uid);
+                $dataset = array(
+                    'username'  => $from_info['username'],
+                    'id'        => $data->from_uid,
+                    'avatar'    => $from_info['avatar'],
+                    'timestamp' => $data->timestamp,
+                    'content'   => $data->content
+                );
+                array_push($history, $dataset);
+            }
         }
     }
     // 返回结果
     $return = array(
-        'code' => '0',
-        'msg' => '',
-        'data' => $history,
+        'code'  => '0',
+        'msg'   => '',
+        'data'  => $history,
         'pages' =>$pages
     );
     echo json_encode($return);
