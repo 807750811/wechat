@@ -1,8 +1,9 @@
 WEB_SOCKET_SWF_LOCATION = "html/assets/swf/WebSocketMain.swf";
 WEB_SOCKET_DEBUG = true;
 var ws;
+var document_domain = "103.117.136.73";
 function connect(){
-	ws = new WebSocket("ws://"+document.domain+":7272");
+	ws = new WebSocket("ws://"+document_domain+":7272");
 	ws.onopen = onopen;
 	ws.onmessage = onmessage;
 	ws.onclose = function(){
