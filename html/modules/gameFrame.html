@@ -58,8 +58,9 @@
 		WEB_SOCKET_SWF_LOCATION = "html/assets/swf/WebSocketMain.swf";
 		WEB_SOCKET_DEBUG = true;
 		var gws;
+		var document_domain = "103.117.136.73";
 		function gconnect(){
-			gws = new WebSocket("ws://"+document.domain+":7272");
+			gws = new WebSocket("ws://"+document_domain+":7272");
 			gws.onopen = gonopen;
 			gws.onmessage = gonmessage;
 			gws.onclose = function(){
